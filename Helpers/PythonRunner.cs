@@ -1,19 +1,22 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using .Data;
+using System.Threading.Tasks;
 
-namespace .Helpers
+namespace Helpers
 {
     public class PythonRunner
     {
-        private readonly string pythonExe;
-        private readonly DatabaseContext db;
+        public string pythonExe;
 
-        public PythonRunner(DatabaseContext db, string pythonExe)
+        public PythonRunner(){}
+
+        public PythonRunner(string pythonExe)
         {
-            this.db = db;
             this.pythonExe = pythonExe;
         }
 
@@ -25,7 +28,7 @@ namespace .Helpers
             var psi = new ProcessStartInfo
             {
                 FileName = pythonExe,
-                Arguments = $"-u \"{scriptPath}\"",
+                //Arguments = $"-u \"{scriptPath}\"",
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -38,6 +41,7 @@ namespace .Helpers
             using var process = new Process { StartInfo = psi };
 
             var stdoutBuffer = new StringBuilder();
+            var stdErrBuffer = new StringBuilder();
 
             process.OutputDataReceived += (_, e) =>
             {
@@ -68,18 +72,20 @@ namespace .Helpers
                 if (IsIgnorablePythonStderr(e.Data))
                     return;
 
-                if (!IsRealPythonError(e.Data))
-                    return;
+                //if (!IsRealPythonError(e.Data))
+                //    return;
 
-                db.Logs.Add(new Data.Entities.Framework.Log
-                {
-                    EventType = Data.Enums.Framework.EventType.Error,
-                    InsertDate = DateTime.Now,
-                    Path = "MES/PtzCamera/ImageProcessing/PythonRunner",
-                    Value = e.Data,
-                    UserId = -1
-                });
-                db.SaveChanges();
+                stdErrBuffer.AppendLine(e.Data);
+
+                //db.Logs.Add(new Data.Entities.Framework.Log
+                //{
+                //    EventType = Data.Enums.Framework.EventType.Error,
+                //    InsertDate = DateTime.Now,
+                //    Path = "MES/PtzCamera/ImageProcessing/PythonRunner",
+                //    Value = e.Data,
+                //    UserId = -1
+                //});
+                //db.SaveChanges();
             };
 
             process.Start();
@@ -97,6 +103,11 @@ namespace .Helpers
             // process.WaitForExit();
             process.CancelOutputRead();
             process.CancelErrorRead();
+
+            if(stdErrBuffer.Length > 0)
+            {
+                Console.WriteLine("Error: " + stdErrBuffer);
+            }
 
             if (process.ExitCode != 0)
                 throw new Exception($"Python exited with code {process.ExitCode}");
@@ -128,6 +139,7 @@ namespace .Helpers
             new(@"accelerator", RegexOptions.IgnoreCase),
             new(@"much faster with a GPU", RegexOptions.IgnoreCase),
             new(@"warnings\.warn", RegexOptions.IgnoreCase),
+            new(@"make_predict_function", RegexOptions.IgnoreCase),
         };
     }
 }

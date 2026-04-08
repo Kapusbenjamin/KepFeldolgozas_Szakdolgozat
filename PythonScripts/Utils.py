@@ -1,16 +1,15 @@
 import sys
-sys.path.insert(0, "C:\\Users\\PLC-PC\\AppData\\Roaming\\Python\\Python311\\site-packages")
-sys.path.insert(0, "D:\\Data\\Repositories\\KE\\Kombo\\PythonScripts\\.venv\\Lib\\site-packages")
 import cv2
 import os
 from datetime import datetime
 import base64
 import tempfile
 import time
+import tkinter as tk
 
 # CONFIG
-path_primary = r"\\10.79.3.200\UploadedFiles\MES"
 path_fallback = os.path.dirname(__file__)
+path_primary = os.path.dirname(__file__) # same path by default (for app demo), but can be overridden in production
 
 # TIME
 def get_current_timestamp():
@@ -206,3 +205,71 @@ def emit_progress(done, total):
     print(f"@@PROGRESS@@ {done} {total}", file=sys.stderr, flush=True)
 # ---------------
 
+# SHOW RESULTS
+def show_grouped_results(items, window_title="Inspection Results"):
+    if not items:
+        return
+
+    # --- GROUP BY IMAGE ---
+    grouped = {}
+    for item in items:
+        path = item["imagePath"]
+        grouped.setdefault(path, []).append(item)
+
+    root = tk.Tk()
+    screen_w = root.winfo_screenwidth()
+    screen_h = root.winfo_screenheight()
+    root.destroy()
+
+    for path, inspections in grouped.items():
+        img = cv2.imread(path)
+        if img is None:
+            continue
+
+        # --- DRAW INSPECTION ROI ---
+        for insp in inspections:
+            x, y = int(insp["x"]), int(insp["y"])
+            w, h = int(insp["w"]), int(insp["h"])
+
+            result = insp["result"]
+            text = insp.get("text", "")
+
+            color = (0, 255, 0) if result else (0, 0, 255)
+
+            # ROI
+            cv2.rectangle(img, (x, y), (x + w, y + h), color, 3)
+
+            # LABEL
+            label = "OK" if result else "NOK"
+            full_text = f"{label} | {text}"
+
+            cv2.putText(
+                img,
+                full_text,
+                (x, max(25, y - 10)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.4,
+                color,
+                5,
+                cv2.LINE_AA
+            )
+
+        # --- CALCULATE WINDOWSIZE ---
+        h, w = img.shape[:2]
+
+        scale = min((screen_w * 0.9) / w, (screen_h * 0.9) / h)
+        resized = cv2.resize(img, (int(w * scale), int(h * scale)))
+
+        title = f"{window_title} - {os.path.basename(path)}"
+
+        cv2.namedWindow(title, cv2.WINDOW_NORMAL)
+
+        x_pos = int((screen_w - resized.shape[1]) / 2)
+        y_pos = 0
+
+        cv2.moveWindow(title, x_pos, y_pos)
+        cv2.resizeWindow(title, resized.shape[1], resized.shape[0])
+
+        cv2.imshow(title, resized)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()

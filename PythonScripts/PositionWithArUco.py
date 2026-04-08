@@ -1,5 +1,4 @@
 import sys
-sys.path.insert(0, "C:\\Users\\PLC-PC\\AppData\\Roaming\\Python\\Python311\\site-packages")
 import os
 import json
 import cv2
