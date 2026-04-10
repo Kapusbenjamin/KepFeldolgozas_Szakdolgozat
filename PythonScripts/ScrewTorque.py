@@ -8,7 +8,7 @@ import Utils
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 # --- CONFIG ---
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "ScrewTorque_model.h5")
+MODEL_PATH = os.path.join(os.path.dirname(sys.executable), "ScrewTorque_model.h5")
 IMG_SIZE = (224, 224)
 CROP_SIZE = 100
 STRIDE = CROP_SIZE // 2
@@ -93,10 +93,10 @@ def process_one(item, model):
     cropped = Utils.crop_with_offset(image, item, item.get("inspectionOffset", 0))
 
     # debug
-    orig_dbg, crop_dbg = Utils.save_debug_images(paths, guid, image, cropped)
-    item["originalImage"] = orig_dbg
-    item["isProd"] = False
-    Utils.log_conversion(item, guid, paths["conversion_log"])
+    # orig_dbg, crop_dbg = Utils.save_debug_images(paths, guid, image, cropped)
+    # item["originalImage"] = orig_dbg
+    # item["isProd"] = False
+    # Utils.log_conversion(item, guid, paths["conversion_log"])
 
     # Sliding window and predict
     windows = sliding_windows(cropped, CROP_SIZE, STRIDE)
@@ -114,7 +114,7 @@ def process_one(item, model):
         for (x, y, roi), score in zip(windows, preds):
             score = float(score)
 
-            save_sliding_roi(paths, guid, x, y, score, roi)
+            # save_sliding_roi(paths, guid, x, y, score, roi)
 
             if score > best_score:
                 best_score = score
@@ -131,8 +131,8 @@ def process_one(item, model):
     if best_roi is None or best_roi.size == 0:
         raise ValueError("No ROI selected")
 
-    saved_path = Utils.save_result_image(paths, guid, best_roi, ok)
-    Utils.log_prediction(saved_path, final_score, THRESHOLD, ok, paths["prediction_log"])
+    # saved_path = Utils.save_result_image(paths, guid, best_roi, ok)
+    # Utils.log_prediction(saved_path, final_score, THRESHOLD, ok, paths["prediction_log"])
 
     scaled_x, scaled_y, scaled_w, scaled_h = Utils.scale_inspection_props(item, image)
     visual_x = int(scaled_x - item.get("offset", 0))

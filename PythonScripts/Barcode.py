@@ -46,10 +46,10 @@ def process_one(item):
     cropped = Utils.rotate_image(Utils.crop_with_offset(image, item, item.get("inspectionOffset", 0)), item.get("angle", 0))
 
     # debug
-    orig_dbg, crop_dbg = Utils.save_debug_images(paths, guid, image, cropped)
-    item["originalImage"] = orig_dbg
-    item["isProd"] = False
-    Utils.log_conversion(item, guid, paths["conversion_log"])
+    # orig_dbg, crop_dbg = Utils.save_debug_images(paths, guid, image, cropped)
+    # item["originalImage"] = orig_dbg
+    # item["isProd"] = False
+    # Utils.log_conversion(item, guid, paths["conversion_log"])
 
     # while(not match_found and angle_index * rotate_angle_step < 360):
     #     found_angle = (base_angle + (angle_index * rotate_angle_step)) % 360
@@ -94,8 +94,8 @@ def process_one(item):
         found_angle = 0
         rotated = cropped
 
-    saved_path = Utils.save_result_image(paths, guid, rotated, match_found)
-    Utils.log_prediction(saved_path, matched_value, 0.0, match_found, paths["prediction_log"])
+    # saved_path = Utils.save_result_image(paths, guid, rotated, match_found)
+    # Utils.log_prediction(saved_path, matched_value, 0.0, match_found, paths["prediction_log"])
 
     if is_base64Image:
         Utils.cleanup(image_path)

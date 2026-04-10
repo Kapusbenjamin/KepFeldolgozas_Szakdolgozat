@@ -166,10 +166,10 @@ def process_one(item, reader):
     cropped = Utils.crop_with_offset(image, item, item.get("inspectionOffset", 0))
 
     # debug
-    orig_dbg, crop_dbg = Utils.save_debug_images(paths, guid, image, cropped)
-    item["originalImage"] = orig_dbg
-    item["isProd"] = False
-    Utils.log_conversion(item, guid, paths["conversion_log"])
+    # orig_dbg, crop_dbg = Utils.save_debug_images(paths, guid, image, cropped)
+    # item["originalImage"] = orig_dbg
+    # item["isProd"] = False
+    # Utils.log_conversion(item, guid, paths["conversion_log"])
 
     # --- OCR Text read ---
     try:
@@ -177,8 +177,8 @@ def process_one(item, reader):
     except Exception as e:
         raise ValueError(f"OCR failed: {e}")
 
-    saved_path = Utils.save_result_image(paths, guid, rotated_image, similarity)
-    Utils.log_prediction(saved_path, results, 0.0, similarity, paths["prediction_log"])
+    # saved_path = Utils.save_result_image(paths, guid, rotated_image, similarity)
+    # Utils.log_prediction(saved_path, results, 0.0, similarity, paths["prediction_log"])
     
     if is_base64Image:
         Utils.cleanup(image_path)

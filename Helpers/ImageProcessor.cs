@@ -18,11 +18,12 @@ namespace Helpers
         //private string pythonExe = @"C:\\Program Files\\Python311\\python.exe";
         private string pythonScriptDirectory = @"PythonScripts";
         private string combinedPath;
+        private string basePath;
         private PythonRunner pythonRunner;
 
         public ImageProcessor()
         {
-            var basePath = AppDomain.CurrentDomain.BaseDirectory;
+            basePath = AppContext.BaseDirectory;
             combinedPath = Path.Combine(basePath, pythonScriptDirectory);
 
             //if (!File.Exists(pythonExe))
@@ -48,7 +49,7 @@ namespace Helpers
             var donePerType = new Dictionary<InspectionType, int>();
             int unitId = 25134; // test unitId
 
-            Console.WriteLine("Processed inspection progress:");
+            Console.WriteLine("Progress of processed inspections:");
             Console.WriteLine("0 %");
 
             foreach (InspectionType insType in inspections.Select(c => c.InspectionType).Distinct())
@@ -65,21 +66,20 @@ namespace Helpers
 
                 foreach (var inspection in inspections.Where(i => i.InspectionType == insType))
                 {
-                    string path = ptzCameraControlItemAndImagePairs
+                    CameraControlItemAndImagePairModel itemAndImagePair = ptzCameraControlItemAndImagePairs
                                     .Where(p => p.PtzCameraControlItemId == inspection.PTZCameraControlItemId)
-                                    .Select(p => p.UploadedFilePath)
                                     .FirstOrDefault();
 
-                    var itemParameters = await CreateBatchItemParameters(unitId.ToString(), inspection, path);
+                    var itemParameters = await CreateBatchItemParameters(unitId.ToString(), inspection, itemAndImagePair.UploadedFilePath);
                     itemParameters.Add("unitId", unitId);
-                    itemParameters.Add("unitImageId", 111111);
+                    itemParameters.Add("unitImageId", itemAndImagePair.UnitImageId);
 
                     batch.Add(itemParameters);
                 }
                 parameters.Add("batch", batch);
 
                 string scriptPath = Path.Combine(combinedPath, insType + ".py");
-                string exePath = Path.Combine(pythonScriptDirectory, "dist", insType.ToString(), insType.ToString() + ".exe");
+                string exePath = Path.Combine(combinedPath, insType.ToString() + ".exe");
                 pythonRunner.pythonExe = exePath;
                 JsonElement res = await pythonRunner.Run(parameters, scriptPath, (done, total) =>
                 {
@@ -102,11 +102,11 @@ namespace Helpers
                     {
                         var inspectionId = item.GetProperty("inspectionId").GetInt32();
                         var itemSuccess  = item.GetProperty("success").GetBoolean();
-                        var result  = item.GetProperty("result").GetBoolean();
+                        var result       = item.GetProperty("result").GetBoolean();
                         var score        = item.GetProperty("score").GetDouble();
                         var value        = item.GetProperty("value").ToString();
                         var insertDate   = item.GetProperty("insertDate").GetInt64();
-                        var error   = itemSuccess ? "" : item.GetProperty("error").GetString();
+                        var error        = itemSuccess ? "" : item.GetProperty("error").GetString();
                     
                         var b = batch.FirstOrDefault(c => (int)c["inspectionId"] == inspectionId);
                         UnitImageInspectionModel newUnitImageInspection = new UnitImageInspectionModel
@@ -124,29 +124,30 @@ namespace Helpers
                         unitImagesInspections.Add(newUnitImageInspection);
 
                         // failedTest
-                        if (!result)
+                        //if (!result)
+                        //{
+                        if(!processResults.Any(c => c.UnitImageId == (int)b["unitImageId"]))
                         {
-                            if(!processResults.Any(c => c.UnitImageId == (int)b["unitImageId"]))
+                            ImageProcessResultModel ipr = new ImageProcessResultModel
                             {
-                                Mat img = Cv2.ImRead(b["originalImage"].ToString());
-                                ImageProcessResultModel ipr = new ImageProcessResultModel
+                                UnitImageId = (int)b["unitImageId"],
+                                ImageToAuthorize = b["originalImage"].ToString(),
+                                UnitImageInspections = new List<UnitImageInspectionModel>(),
+                                ResultMessage = new ResultMessageModel
                                 {
-                                    UnitImageId = (int)b["unitImageId"],
-                                    ImageToAuthorize = Convert.ToBase64String(img.ToBytes()),
-                                    UnitImageInspections = new List<UnitImageInspectionModel>(),
-                                    ResultMessage = new ResultMessageModel
-                                    {
-                                        Success = true,
-                                        Message = "Needs to be authorized"
-                                    }
-                                };
-                                processResults.Add(ipr);
-                            }
+                                    Success = true,
+                                    Message = "Needs to be authorized"
+                                }
+                            };
+                            processResults.Add(ipr);
                         }
+                        //}
 
                         // if there is an python error, log it
                         if (!itemSuccess && !string.IsNullOrWhiteSpace(error))
                         {
+                            Console.WriteLine("Python error:");
+                            Console.WriteLine(error);
                             //db.Logs.Add(new Log
                             //{
                             //    EventType = Data.Enums.Framework.EventType.Error,
@@ -230,6 +231,7 @@ namespace Helpers
             string formattedDate = now.ToString("yyyyMMdd");
             string logName = logId + "_" + inspection.Id + "_" + Guid.NewGuid().ToString().Substring(0, 4);
             string outputPath = Path.Combine("debug", formattedDate, logName + "_output.json");
+            var fullPath = Path.GetFullPath(Path.Combine(basePath, imagePath));
 
             var itemParameters = new Dictionary<string, object>
             {
@@ -238,7 +240,7 @@ namespace Helpers
                 ["requiredValue"] = inspection.RequiredValue,
                 ["angle"] = inspection.Angle,
                 ["output"] = outputPath,
-                ["originalImage"] = imagePath,
+                ["originalImage"] = fullPath,
                 ["inspectionX"] = (int)inspection.X,
                 ["inspectionY"] = (int)inspection.Y,
                 ["inspectionWidth"] = (int)inspection.Width,
