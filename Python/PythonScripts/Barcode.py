@@ -1,5 +1,7 @@
 ﻿import sys
 import os
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE_DIR)
 import re
 import json
 import cv2
@@ -30,7 +32,7 @@ def process_one(item):
     guid = item.get("logName")
 
     base_path = Utils.resolve_base_path(item.get("isProd", False), __file__)
-    paths = Utils.build_paths(base_path)
+    # paths = Utils.build_paths(base_path)
 
     image_path = item.get("originalImage")
     is_base64Image = Utils.is_base64_image(image_path)
@@ -99,15 +101,6 @@ def process_one(item):
 
     if is_base64Image:
         Utils.cleanup(image_path)
-        
-    scaled_x, scaled_y, scaled_w, scaled_h = Utils.scale_inspection_props(item, image)
-    visual_x = int(scaled_x - item.get("offset", 0))
-    visual_y = int(scaled_y - item.get("offset", 0))
-
-    if visual_x < 0:
-        visual_x = 0
-    if visual_y < 0:
-        visual_y = 0
 
     return {
         "inspectionId": item.get("inspectionId"),
@@ -116,16 +109,7 @@ def process_one(item):
         "score": 0.0,
         "value": matched_value,
         "angle": found_angle,
-        "insertDate": Utils.get_current_timestamp(),
-        "visual": {
-            "imagePath": image_path,
-            "x": visual_x,
-            "y": visual_y,
-            "w": cropped.shape[1],
-            "h": cropped.shape[0],
-            "result": match_found,
-            "text": item.get("requiredValue", "")
-        }
+        "insertDate": Utils.get_current_timestamp()
     }
 
 def main():    
@@ -167,9 +151,6 @@ def main():
         results.append(res)
         done += 1
         Utils.emit_progress(done, total)
-        
-    visuals = [r["visual"] for r in results if r.get("success")]
-    Utils.show_grouped_results(visuals, "Barcode Inspection Results")
 
     print(json.dumps({
         "success": True,

@@ -1,5 +1,7 @@
 ﻿import sys
 import os
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE_DIR)
 import json
 import cv2
 import numpy as np
@@ -8,7 +10,8 @@ import Utils
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 # --- CONFIG ---
-MODEL_PATH = os.path.join(os.path.dirname(sys.executable), "ScrewTorque_model.h5")
+# MODEL_PATH = os.path.join(os.path.dirname(sys.executable), "ScrewTorque_model.h5")
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ScrewTorque_model.h5")
 IMG_SIZE = (224, 224)
 CROP_SIZE = 100
 STRIDE = CROP_SIZE // 2
@@ -80,7 +83,7 @@ def process_one(item, model):
     guid = item.get("logName")
 
     base_path = Utils.resolve_base_path(item.get("isProd", False), __file__)
-    paths = Utils.build_paths(base_path)
+    # paths = Utils.build_paths(base_path)
 
     image_path = item.get("originalImage")
     if not os.path.exists(image_path):
@@ -132,16 +135,7 @@ def process_one(item, model):
         raise ValueError("No ROI selected")
 
     # saved_path = Utils.save_result_image(paths, guid, best_roi, ok)
-    # Utils.log_prediction(saved_path, final_score, THRESHOLD, ok, paths["prediction_log"])
-
-    scaled_x, scaled_y, scaled_w, scaled_h = Utils.scale_inspection_props(item, image)
-    visual_x = int(scaled_x - item.get("offset", 0))
-    visual_y = int(scaled_y - item.get("offset", 0))
-
-    if visual_x < 0:
-        visual_x = 0
-    if visual_y < 0:
-        visual_y = 0
+    # Utils.log_prediction(saved_path, final_score, THRESHOLD, ok, paths["prediction_log"]
 
     return {
         "inspectionId": item.get("inspectionId"),
@@ -149,16 +143,7 @@ def process_one(item, model):
         "result": ok,
         "score": final_score,
         "value": ok,
-        "insertDate": Utils.get_current_timestamp(),
-        "visual": {
-            "imagePath": image_path,
-            "x": visual_x,
-            "y": visual_y,
-            "w": cropped.shape[1],
-            "h": cropped.shape[0],
-            "result": ok,
-            "text": f"{final_score:.1f}%"
-        }
+        "insertDate": Utils.get_current_timestamp()
     }
 
 def main():    
@@ -172,7 +157,7 @@ def main():
         print(json.dumps({"success": False, "error": "No items"}), flush=True)
         return
 
-    model = load_model(MODEL_PATH)
+    model = load_model(MODEL_PATH, compile=False)
 
     results = []
     done = 0
@@ -201,9 +186,6 @@ def main():
         results.append(res)
         done += 1
         Utils.emit_progress(done, total)
-
-    visuals = [r["visual"] for r in results if r.get("success")]
-    Utils.show_grouped_results(visuals, "ScrewTorque Inspection Results")
 
     print(json.dumps({
         "success": True,

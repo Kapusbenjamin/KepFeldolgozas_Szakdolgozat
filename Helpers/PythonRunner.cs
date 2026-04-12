@@ -32,7 +32,7 @@ namespace Helpers
                 var psi = new ProcessStartInfo
                 {
                     FileName = pythonExe,
-                    //Arguments = $"-u \"{scriptPath}\"",
+                    Arguments = $"-u \"{scriptPath}\"",
                     RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -100,7 +100,7 @@ namespace Helpers
                 var json = JsonSerializer.Serialize(payload);
                 await process.StandardInput.WriteLineAsync(json);
                 await process.StandardInput.FlushAsync();
-                process.StandardInput.Close();
+                //process.StandardInput.Close();
 
                 await process.WaitForExitAsync();
 
@@ -114,7 +114,7 @@ namespace Helpers
                 }
 
                 if (process.ExitCode != 0)
-                    throw new Exception($"Python exited with code {process.ExitCode}");
+                    throw new Exception($"Python exited with code {process.ExitCode}\n{stdErrBuffer}");
 
                 output = stdoutBuffer.ToString().Trim();
                 if (string.IsNullOrWhiteSpace(output))
@@ -122,7 +122,7 @@ namespace Helpers
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error running Python script: " + ex.Message);
+                throw new Exception("PythonRunner failed: " + ex.Message);
             }
 
             return JsonSerializer.Deserialize<JsonElement>(output);
@@ -149,6 +149,8 @@ namespace Helpers
             new(@"much faster with a GPU", RegexOptions.IgnoreCase),
             new(@"warnings\.warn", RegexOptions.IgnoreCase),
             new(@"make_predict_function", RegexOptions.IgnoreCase),
+            new(@"downloading", RegexOptions.IgnoreCase),
+            new(@"Downloading", RegexOptions.IgnoreCase),
         };
     }
 }

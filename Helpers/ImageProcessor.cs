@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -15,8 +14,8 @@ namespace Helpers
 {
     public class ImageProcessor
     {
-        //private string pythonExe = @"C:\\Program Files\\Python311\\python.exe";
-        private string pythonScriptDirectory = @"PythonScripts";
+        private string pythonExe;
+        private string pythonScriptDirectory = @"Python\PythonScripts";
         private string combinedPath;
         private string basePath;
         private PythonRunner pythonRunner;
@@ -31,7 +30,9 @@ namespace Helpers
             //    pythonExe = "python";
             //}
 
+            pythonExe = Path.Combine(basePath, "Python\\python\\python.exe");
             pythonRunner = new PythonRunner();
+            pythonRunner.pythonExe = pythonExe;
         }
 
         public async Task<List<ImageProcessResultModel>> Process(List<CameraControlItemAndImagePairModel> ptzCameraControlItemAndImagePairs, List<CameraControlItemInspectionModel> inspections, double offsetX, double offsetY, double rotation)
@@ -79,8 +80,9 @@ namespace Helpers
                 parameters.Add("batch", batch);
 
                 string scriptPath = Path.Combine(combinedPath, insType + ".py");
-                string exePath = Path.Combine(combinedPath, insType.ToString() + ".exe");
-                pythonRunner.pythonExe = exePath;
+                //string exePath = Path.Combine(combinedPath, insType.ToString() + ".exe");
+                //pythonRunner.pythonExe = exePath;
+                //pythonRunner.pythonExe = pythonExe;
                 JsonElement res = await pythonRunner.Run(parameters, scriptPath, (done, total) =>
                 {
                     donePerType[insType] = done;
@@ -178,6 +180,17 @@ namespace Helpers
                     //    UserId = -1
                     //});
                     //db.SaveChanges();
+                    ImageProcessResultModel pri = new ImageProcessResultModel
+                    {
+                        ImageToAuthorize = "",
+                        UnitImageInspections = new List<UnitImageInspectionModel>(),
+                        ResultMessage = new ResultMessageModel
+                        {
+                            Success = false,
+                            Message = e.Message
+                        }
+                    };
+                    processResults.Add(pri);
                 }
             }
 
@@ -194,6 +207,10 @@ namespace Helpers
                     }
                 };
                 processResults.Add(pri);
+            }
+            else
+            {
+                ShowGroupedResults(processResults, inspections);
             }
 
             return processResults;
@@ -253,5 +270,103 @@ namespace Helpers
             return itemParameters;
         }
 
+        public void ShowGroupedResults(
+            List<ImageProcessResultModel> items,
+            List<CameraControlItemInspectionModel> inspections,
+            string windowTitle = "Inspection Results")
+        {
+            if (items == null || items.Count == 0)
+                return;
+
+            var grouped = items
+                .SelectMany(x => x.UnitImageInspections.Select(i => new
+                {
+                    x.ImageToAuthorize,
+                    Inspection = i,
+                    i.Result,
+                    i.Value
+                }))
+                .GroupBy(x => x.ImageToAuthorize);
+
+            var screenW = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width;
+            var screenH = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height;
+
+            foreach (var group in grouped)
+            {
+                string path = group.Key;
+                if (!System.IO.File.Exists(path))
+                    continue;
+
+                using var img = Cv2.ImRead(path);
+                if (img.Empty())
+                    continue;
+
+                foreach (var item in group)
+                {
+                    var insp = item.Inspection;
+                    var baseInsp = inspections.Find(c => c.Id == insp.CameraControlItemInspectionId);
+                    int x = (int)(baseInsp.X);
+                    int y = (int)(baseInsp.Y);
+                    int w = (int)(baseInsp.Width);
+                    int h = (int)(baseInsp.Height);
+
+                    bool result = insp.Result;
+                    string text = baseInsp.RequiredValue == "" ? insp.Score.ToString() : baseInsp.RequiredValue;
+
+                    Scalar color = result
+                        ? new Scalar(0, 255, 0)
+                        : new Scalar(0, 0, 255);
+
+                    Cv2.Rectangle(
+                        img,
+                        new Rect(x, y, w, h),
+                        color,
+                        3);
+
+                    // label
+                    string label = result ? "OK" : "NOK";
+                    string fullText = $"{label} | {text}";
+
+                    int textY = Math.Max(25, y - 10);
+
+                    Cv2.PutText(
+                        img,
+                        fullText,
+                        new Point(x, textY),
+                        HersheyFonts.HersheySimplex,
+                        2.0,
+                        color,
+                        6);
+                }
+
+                // --- resize to screen ---
+                int imgH = img.Rows;
+                int imgW = img.Cols;
+
+                double scale = Math.Min(
+                    (screenW * 0.9) / imgW,
+                    (screenH * 0.9) / imgH);
+
+                var resized = new Mat();
+                Cv2.Resize(img, resized, new Size(
+                    (int)(imgW * scale),
+                    (int)(imgH * scale)));
+
+                string title = $"{windowTitle} - {Path.GetFileName(path)}";
+
+                Cv2.NamedWindow(title, WindowFlags.Normal);
+
+                int xPos = (screenW - resized.Cols) / 2;
+                int yPos = 0;
+
+                Cv2.MoveWindow(title, xPos, yPos);
+                Cv2.ResizeWindow(title, resized.Cols, resized.Rows);
+
+                Cv2.ImShow(title, resized);
+                Cv2.WaitKey(0);
+
+                Cv2.DestroyAllWindows();
+            }
+        }
     }
 }
